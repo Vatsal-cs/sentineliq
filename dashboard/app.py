@@ -37,9 +37,7 @@ with engine.connect() as conn:
 # ── Row 1: Portfolio Metrics ──────────────────────────────────────────────────
 st.subheader("📊 Portfolio Overview")
 col1, col2, col3, col4, col5 = st.columns(5)
-with engine.connect() as conn:
-    total_scored = pd.read_sql("SELECT COUNT(*) as n FROM risk_scores", conn)['n'].iloc[0]
-col1.metric("Total Clients Scored", f"{total_scored:,}")
+col1.metric("Total Clients", f"{len(smart_df):,}")
 col2.metric("🔴 Auto Freeze", 
             f"{(smart_df['smart_action']=='AUTO FREEZE').sum():,}")
 col3.metric("🟠 Soft Freeze",
