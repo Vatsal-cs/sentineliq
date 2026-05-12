@@ -7,8 +7,7 @@ SentinelIQ asks three: *Is this fraud? How confident are we? And what does it co
 That third question is what most models miss — and it's the one that matters most in production. A high-value customer with four years of clean history getting their account frozen because of a borderline model score isn't a win. It's a churn event, a support ticket, and a reputational hit. SentinelIQ is built around the idea that fraud decisions should be proportional to both risk *and* certainty.
 
 **Live demo:** [sentineliq-godbless.streamlit.app](https://sentineliq-godbless.streamlit.app)  
-**API docs:** Run the FastAPI at `https://sentineliq.onrender.com`
-
+**API docs:** [sentineliq.onrender.com/docs](https://sentineliq.onrender.com/docs)
 ---
 
 ## What it does

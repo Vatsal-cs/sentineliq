@@ -297,7 +297,7 @@ except:
     DATABASE_URL = os.getenv('DATABASE_URL')
 
 engine = create_engine(DATABASE_URL)
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://sentineliq.onrender.com"
 
 @st.cache_data(ttl=300)
 def load_data():
