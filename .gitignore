@@ -2,7 +2,7 @@
 venv/
 __pycache__/
 *.pkl
-*.pyc
+#*.pyc
 .DS_Store
 data/
 notebooks/.ipynb_checkpoints/
