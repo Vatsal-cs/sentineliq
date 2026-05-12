@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
+import os
 from sqlalchemy import create_engine, text
 
 st.set_page_config(
@@ -11,7 +12,15 @@ st.set_page_config(
     layout="wide"
 )
 
-engine = create_engine('postgresql://vatsalj05@localhost:5432/sentineliq')
+# ── Database Connection ───────────────────────────────────────────────────────
+try:
+    DATABASE_URL = st.secrets["DATABASE_URL"]
+except:
+    from dotenv import load_dotenv
+    load_dotenv('../.env')
+    DATABASE_URL = os.getenv('DATABASE_URL')
+
+engine = create_engine(DATABASE_URL)
 API_URL = "http://127.0.0.1:8000"
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -171,33 +180,21 @@ if st.button("Assess Risk", type="primary"):
                 )
                 if response.status_code == 200:
                     data = response.json()
-
                     tier_icons = {
                         'FREEZE': '🔴', 'ALERT': '🟡',
                         'MONITOR': '🔵', 'CLEAR': '🟢'
                     }
-
                     st.success(f"Assessment complete for client {client_input}")
-
                     r1, r2, r3, r4 = st.columns(4)
-                    r1.metric("Fraud Probability",
-                              f"{data['fraud_probability']:.4f}")
-                    r2.metric("Exposure Risk",
-                              f"{data['exposure_risk']:.4f}")
-                    r3.metric("Composite Score",
-                              f"{data['composite_score']:.4f}")
-                    r4.metric("Risk Tier",
-                              f"{tier_icons.get(data['risk_tier'], '')} {data['risk_tier']}")
-
+                    r1.metric("Fraud Probability", f"{data['fraud_probability']:.4f}")
+                    r2.metric("Exposure Risk", f"{data['exposure_risk']:.4f}")
+                    r3.metric("Composite Score", f"{data['composite_score']:.4f}")
+                    r4.metric("Risk Tier", f"{tier_icons.get(data['risk_tier'], '')} {data['risk_tier']}")
                     st.warning(f"**Recommendation:** {data['recommendation']}")
-
                     st.markdown("**Top Risk Drivers (SHAP Explainability)**")
                     for driver in data['top_risk_drivers']:
                         icon = "🔴" if driver['impact'] > 0 else "🟢"
-                        st.markdown(
-                            f"{icon} **{driver['feature']}**: "
-                            f"{driver['explanation']}"
-                        )
+                        st.markdown(f"{icon} **{driver['feature']}**: {driver['explanation']}")
                 else:
                     st.error(f"Client not found: {response.status_code}")
             except Exception as e:
@@ -247,20 +244,17 @@ st.markdown("Tracks model behaviour across time windows to detect when retrainin
 with engine.connect() as conn:
     drift_df = pd.read_sql('SELECT * FROM drift_monitor ORDER BY "window"', conn)
 
-# Drift metrics row
 baseline = drift_df['avg_fraud_prob'][:3].mean()
 current = drift_df['avg_fraud_prob'].iloc[-1]
 drift_pct = ((current - baseline) / baseline) * 100
 
 d1, d2, d3, d4 = st.columns(4)
 d1.metric("Baseline Fraud Prob (M1-3)", f"{baseline:.4f}")
-d2.metric("Current Fraud Prob (M8)", f"{current:.4f}",
-          f"{drift_pct:+.1f}% from baseline")
+d2.metric("Current Fraud Prob (M8)", f"{current:.4f}", f"{drift_pct:+.1f}% from baseline")
 d3.metric("Avg Transaction Amt — M1", f"${drift_df['avg_transaction_amt'].iloc[0]:.0f}")
 d4.metric("Avg Transaction Amt — M8", f"${drift_df['avg_transaction_amt'].iloc[-1]:.0f}",
           f"+{((drift_df['avg_transaction_amt'].iloc[-1]/drift_df['avg_transaction_amt'].iloc[0])-1)*100:.0f}% drift")
 
-# Drift charts
 col_d1, col_d2 = st.columns(2)
 
 with col_d1:
@@ -282,10 +276,8 @@ with col_d1:
 
 with col_d2:
     fig_d2, ax_d2 = plt.subplots(figsize=(6, 3))
-    colors_bar = ['#ef4444' if i >= 4 else '#3b82f6' 
-                  for i in range(len(drift_df))]
-    ax_d2.bar(drift_df['month'], drift_df['avg_transaction_amt'],
-              color=colors_bar)
+    colors_bar = ['#ef4444' if i >= 4 else '#3b82f6' for i in range(len(drift_df))]
+    ax_d2.bar(drift_df['month'], drift_df['avg_transaction_amt'], color=colors_bar)
     ax_d2.set_title('Data Drift — Avg Transaction Amount', color='white')
     ax_d2.set_facecolor('#0e1117')
     fig_d2.patch.set_facecolor('#0e1117')
@@ -293,7 +285,6 @@ with col_d2:
     plt.tight_layout()
     st.pyplot(fig_d2)
 
-# Drift status
 max_prob = drift_df['avg_fraud_prob'].max()
 if max_prob > drift_threshold:
     st.error("⚠️ Drift detected — Model retraining recommended")
