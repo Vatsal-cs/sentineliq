@@ -201,4 +201,4 @@ sentineliq/
 
 ---
 
-*Built by Vatsal Jain — [linkedin.com/in/vatsal-jain](https://linkedin.com/in/vatsal-jain) — vatsalj05@gmail.com*
+*Built by Vatsal Jain — https://www.linkedin.com/in/vatsal-jain-873920228/— vatsalj05@gmail.com*
