@@ -1,7 +1,7 @@
 streamlit
 pandas
 numpy
-matplotlib
+plotly
 sqlalchemy
 psycopg2-binary
 requests
@@ -10,3 +10,4 @@ xgboost
 shap
 scikit-learn
 scipy
+matplotlib
