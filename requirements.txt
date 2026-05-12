@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+matplotlib
+sqlalchemy
+psycopg2-binary
+requests
+python-dotenv
+xgboost
+shap
+scikit-learn
+scipy
