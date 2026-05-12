@@ -15,11 +15,13 @@ app = FastAPI(
 )
 
 # Load model and features on startup
-with open('../models/sentineliq_model.pkl', 'rb') as f:
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+with open(os.path.join(BASE_DIR, 'models', 'sentineliq_model.pkl'), 'rb') as f:
     model = pickle.load(f)
-
-with open('../models/features.pkl', 'rb') as f:
+with open(os.path.join(BASE_DIR, 'models', 'features.pkl'), 'rb') as f:
     features = pickle.load(f)
+with open(os.path.join(BASE_DIR, 'models', 'platt_scaler.pkl'), 'rb') as f:
+    platt_scaler = pickle.load(f)
 
 # Database connection
 load_dotenv('../.env')
