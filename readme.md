@@ -1,29 +1,26 @@
 # SentinelIQ
 
-**Most fraud systems ask one question: is this fraud?**
-
-SentinelIQ asks three: *Is this fraud? How confident are we? And what does it cost to be wrong?*
-
-That third question is what most models miss — and it's the one that matters most in production. A high-value customer with four years of clean history getting their account frozen because of a borderline model score isn't a win. It's a churn event, a support ticket, and a reputational hit. SentinelIQ is built around the idea that fraud decisions should be proportional to both risk *and* certainty.
+Fraud detection model + API + dashboard for scoring client risk. Most fraud systems just spit out "fraud / not fraud." This one also tracks how confident it actually is, and factors in what it costs to be wrong — freezing a long-time customer's account over a borderline score is its own kind of expensive (support tickets, churn, angry emails).
 
 **Live demo:** [sentineliq-godbless.streamlit.app](https://sentineliq-godbless.streamlit.app)  
 **API docs:** [sentineliq.onrender.com/docs](https://sentineliq.onrender.com/docs)
+
 ---
 
 ## What it does
 
-SentinelIQ scores every client across three independent signals and combines them into a single risk decision:
+Three signals get combined into one risk decision per client:
 
-**1. ML Fraud Score**  
-An XGBoost model trained on 590,540 real financial transactions from the IEEE-CIS Fraud Detection dataset. 54 features including transaction timing, card network signals, count-based behavioural features (how many cards are linked to this address?), and time-delta features (how long since this account was last active?). AUC-ROC of 0.9528, AUC-PR of 0.7017 — which crosses the threshold most fraud papers treat as the target for heavily imbalanced datasets.
+**1. ML fraud score**  
+XGBoost trained on the IEEE-CIS Fraud Detection dataset (590,540 transactions). 54 features — transaction timing, card network stuff, count-based features like "how many cards are tied to this address," time-deltas like "how long since this account last did anything." Ended up at AUC-ROC 0.9528 / AUC-PR 0.7017, which is roughly in line with what other people get on this dataset.
 
-**2. Breach Exposure Score**  
-Motivated by the August 2025 Wealthsimple breach that exposed SINs, government IDs, and account numbers for tens of thousands of clients. For each client, a weighted exposure score is computed based on which data fields were compromised — SIN exposure carries the most weight (0.35) because combined with a DOB it enables synthetic identity fraud; IP exposure alone carries the least (0.08). This layer catches risk that transaction behaviour alone can't see.
+**2. Breach exposure score**  
+Added this after the Wealthsimple breach in Aug 2025 (SINs, gov IDs, account numbers leaked for a bunch of clients). Each client gets a weighted exposure score based on what fields of theirs were exposed — SIN is weighted highest (0.35) since it's the main ingredient for synthetic identity fraud, IP address is weighted lowest (0.08). Point of this layer is to catch risk that transaction history alone won't show you.
 
-**3. Calibration + Confidence Intervals**  
-The raw XGBoost probabilities are poorly calibrated due to class imbalance handling — when the model says 0.85, the actual fraud rate at that score is closer to 0.36. Platt scaling fixes this. Then bootstrap confidence intervals are computed per prediction: a wide interval (HIGH uncertainty) triggers a softer response than a narrow interval (HIGH confidence), even at the same raw score. This is what prevents borderline cases from being treated with the same urgency as clear-cut fraud.
+**3. Calibration + confidence intervals**  
+Turns out the raw XGBoost probabilities aren't well calibrated because of how the class imbalance is handled — a 0.85 score actually corresponds to more like a 36% real fraud rate. Fixed that with Platt scaling. On top of that, bootstrap confidence intervals per prediction, so a wide interval (not sure) gets a softer response than a narrow interval (sure) even if the raw score is identical.
 
-The three signals combine into **7 smart actions** instead of a blunt freeze/clear binary:
+Those three signals feed into **7 possible actions** instead of just freeze/clear:
 
 | Action | Trigger |
 |--------|---------|
@@ -37,27 +34,25 @@ The three signals combine into **7 smart actions** instead of a blunt freeze/cle
 
 ---
 
-## Why the model got better over time
+## Model iteration notes
 
-The initial model scored AUC-PR 0.6447 on 43 features. Four iterations later it reached 0.7017 on 54 features and 1,500 trees. Here's what actually moved the needle:
+Started at AUC-PR 0.6447 with 43 features, ended up at 0.7017 with 54 features and 1,500 trees. What actually helped:
 
-- **Adding V columns**: The IEEE-CIS dataset has 339 anonymized V columns. Most are missing 50%+ of the time or have near-zero correlation with fraud. Picking the 11 with the highest correlation and lowest missingness (V123, V302, V304, V303, V283, V125, V282, V111, V113, V69, V70) pushed AUC-PR from 0.6447 to 0.6807.
-- **More trees at lower learning rate**: Going from 500 trees at lr=0.05 to 1,500 trees at lr=0.03 pushed AUC-PR from 0.6807 to 0.7017. The model was still improving at tree 1,499.
-- **Calibration**: Platt scaling didn't improve AUC but made the probability outputs trustworthy — which is what enables the confidence interval layer to work correctly.
+- **V columns**: IEEE-CIS has 339 anonymized V columns, most either mostly-missing or basically uncorrelated with fraud. Went through and picked the 11 with best correlation/missingness tradeoff (V123, V302, V304, V303, V283, V125, V282, V111, V113, V69, V70). That alone took AUC-PR from 0.6447 to 0.6807.
+- **More trees, lower learning rate**: 500 trees @ lr=0.05 → 1,500 trees @ lr=0.03. Got 0.6807 to 0.7017. Was still climbing slowly at tree 1,499, could probably squeeze out a bit more.
+- **Calibration**: Platt scaling doesn't change AUC at all but makes the probabilities actually mean something, which the confidence interval step depends on.
 
 ---
 
-## What the data actually shows
+## Notes from the EDA
 
-A few findings from the EDA that are worth noting:
+**Fraud peaks around 7am, not overnight.** I expected 3am to be the worst. It's actually the lowest (3.1%), and 7am is the highest (10.6%) — guessing fraudsters ride the morning rush when everything looks like normal traffic.
 
-**Fraud peaks at 7am, not 3am.** Contrary to the intuitive assumption, fraud in this dataset is lowest at midnight (3.1% rate) and peaks at 7am (10.6%). Fraudsters blend into the morning rush when transactions look normal and victims are less likely to notice.
+**ProductCD=C is way riskier.** 11.7% fraud rate vs 2.0% for ProductCD=W. One categorical column doing a lot of work.
 
-**Product type C has 3x the fraud rate.** ProductCD=C (likely crypto/cash-adjacent transactions) has an 11.7% fraud rate versus 2.0% for ProductCD=W (standard e-commerce). A single categorical feature carries enormous signal.
+**Count features beat transaction-level ones.** Top SHAP features are C8, C4, C14 — stuff like "how many cards linked to this address." Outranks amount and time of day by a good margin. Looks like most of the fraud here is ring-based rather than one-off account takeovers.
 
-**Behavioural counts matter more than transaction-level signals.** The top SHAP features are C8, C4, and C14 — count-based features measuring how many cards are linked to an address, how many addresses to a card. These network-level signals dominate over transaction amount or time of day. The fraud in this dataset is primarily organized ring fraud, not individual account compromises.
-
-**The model is more useful than accuracy implies.** On a 3.5% fraud rate dataset, a model predicting "not fraud" for every transaction would be 96.5% accurate. SentinelIQ's AUC-PR of 0.7017 means it's genuinely finding fraud cases while keeping false positives manageable — the metric that actually matters for an operations team.
+**Accuracy is a bad metric here.** Fraud rate is 3.5%, so guessing "not fraud" every time gets you 96.5% accuracy for free. AUC-PR 0.7017 is the number that actually matters for whether this catches real cases without burying an ops team in false positives.
 
 ---
 

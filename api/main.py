@@ -31,8 +31,6 @@ engine = create_engine(os.getenv('DATABASE_URL'))
 explainer = shap.TreeExplainer(model)
 
 
-# ── Request/Response Models ──────────────────────────────────────────────────
-
 class AssessRequest(BaseModel):
     client_id: str
 
@@ -44,8 +42,6 @@ class RiskResponse(BaseModel):
     risk_tier: str
     top_risk_drivers: list
     recommendation: str
-
-# ── Helper Functions ─────────────────────────────────────────────────────────
 
 def get_recommendation(tier: str) -> str:
     recommendations = {
@@ -77,8 +73,6 @@ def get_shap_explanation(X_row: pd.DataFrame) -> list:
         })
     return drivers
 
-
-# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def root():

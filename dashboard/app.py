@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ── GLOBAL CSS ────────────────────────────────────────────────────────────────
+# css
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -30,7 +30,7 @@ st.markdown("""
 /* Hide streamlit branding */
 #MainMenu, footer, header { visibility: hidden; }
 
-/* ── HERO ── */
+/* hero */
 .hero-wrapper {
     background: linear-gradient(135deg, #020408 0%, #0d1117 50%, #020408 100%);
     border-bottom: 1px solid #1e2d3d;
@@ -115,7 +115,7 @@ st.markdown("""
     letter-spacing: 0.05em;
 }
 
-/* ── KPI CARDS ── */
+/* kpi cards */
 .kpi-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -190,7 +190,7 @@ st.markdown("""
 .kpi-safe .kpi-label { color: #4ade80; }
 .kpi-safe .kpi-value { color: #86efac; }
 
-/* ── SECTION ── */
+/* section header */
 .section-header {
     display: flex;
     align-items: center;
@@ -214,7 +214,7 @@ st.markdown("""
     font-weight: 600;
 }
 
-/* ── RISK CARD (assessment result) ── */
+/* risk card for the assessment result */
 .risk-result {
     background: linear-gradient(135deg, #0f172a, #1e1b4b);
     border: 1px solid #312e81;
@@ -246,13 +246,13 @@ st.markdown("""
     border-left: 3px solid;
 }
 
-/* ── TABLE ── */
+/* table */
 .stDataFrame { border-radius: 12px; overflow: hidden; }
 
-/* ── DIVIDER ── */
+/* divider */
 hr { border-color: #1e293b !important; margin: 1.5rem 0 !important; }
 
-/* ── INPUTS ── */
+/* inputs */
 .stTextInput input {
     background: #0f172a !important;
     border: 1px solid #334155 !important;
@@ -279,7 +279,7 @@ hr { border-color: #1e293b !important; margin: 1.5rem 0 !important; }
     box-shadow: 0 8px 25px rgba(99,102,241,0.4) !important;
 }
 
-/* ── SELECTBOX ── */
+/* selectbox */
 .stSelectbox select, div[data-baseweb="select"] {
     background: #0f172a !important;
     border-color: #334155 !important;
@@ -288,7 +288,7 @@ hr { border-color: #1e293b !important; margin: 1.5rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── DB CONNECTION ─────────────────────────────────────────────────────────────
+# db connection
 try:
     DATABASE_URL = st.secrets["DATABASE_URL"]
 except:
@@ -308,7 +308,7 @@ def load_data():
 
 smart_df, drift_df = load_data()
 
-# ── COMPUTED METRICS ──────────────────────────────────────────────────────────
+# computed metrics
 total = len(smart_df)
 auto_freeze = (smart_df['smart_action'] == 'AUTO FREEZE').sum()
 priority = (smart_df['smart_action'] == 'FREEZE + PRIORITY REVIEW').sum()
@@ -318,7 +318,7 @@ clear = (smart_df['smart_action'] == 'CLEAR').sum()
 avg_fraud = smart_df['fraud_probability'].mean()
 high_conf = (smart_df['ci_width'] < 0.10).sum()
 
-# ── HERO ──────────────────────────────────────────────────────────────────────
+# hero
 st.markdown(f"""
 <div class="hero-wrapper">
     <div class="hero-badge">🛡️ &nbsp; Financial Risk Intelligence</div>
@@ -353,7 +353,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── KPI CARDS ─────────────────────────────────────────────────────────────────
+# kpi cards
 st.markdown(f"""
 <div class="kpi-grid">
     <div class="kpi-card kpi-total">
@@ -384,7 +384,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── ROW: ACTION + CONFIDENCE ──────────────────────────────────────────────────
+# action distribution + confidence, side by side
 col_l, col_r = st.columns(2)
 
 with col_l:
@@ -447,7 +447,7 @@ with col_r:
 
 st.divider()
 
-# ── FRAUD PROBABILITY HISTOGRAM ───────────────────────────────────────────────
+# fraud probability histogram
 st.markdown('<div class="section-header"><span class="section-title">Fraud Probability Distribution</span><span class="section-badge">590k transactions</span></div>', unsafe_allow_html=True)
 
 fig3 = px.histogram(smart_df, x='fraud_probability', nbins=80,
@@ -473,7 +473,7 @@ st.plotly_chart(fig3, use_container_width=True)
 
 st.divider()
 
-# ── CLV vs RISK ───────────────────────────────────────────────────────────────
+# clv vs risk
 st.markdown('<div class="section-header"><span class="section-title">Customer Value vs Fraud Risk</span><span class="section-badge">False Positive Protection</span></div>', unsafe_allow_html=True)
 st.caption("PREMIUM clients near the FREEZE threshold receive human review before any action — protecting high-value relationships from false positives")
 
@@ -532,7 +532,7 @@ with col_info:
 
 st.divider()
 
-# ── BREACH EXPOSURE ───────────────────────────────────────────────────────────
+# breach exposure
 st.markdown('<div class="section-header"><span class="section-title">Breach Exposure Impact</span><span class="section-badge">Post-breach analysis</span></div>', unsafe_allow_html=True)
 
 exposed = smart_df[smart_df['exposure_risk'] > 0]
@@ -549,7 +549,7 @@ b4.metric("Risk Uplift from Breach", f"{uplift:+.4f}",
 
 st.divider()
 
-# ── LIVE ASSESSMENT ───────────────────────────────────────────────────────────
+# live assessment
 st.markdown('<div class="section-header"><span class="section-title">Live Client Risk Assessment</span><span class="section-badge">Real-time API</span></div>', unsafe_allow_html=True)
 
 col_in, col_hint = st.columns([2, 3])
@@ -633,7 +633,7 @@ if btn and client_input:
 
 st.divider()
 
-# ── HIGH RISK TABLE ───────────────────────────────────────────────────────────
+# high risk table
 st.markdown('<div class="section-header"><span class="section-title">Clients Requiring Immediate Action</span><span class="section-badge">Sortable</span></div>', unsafe_allow_html=True)
 
 col_f, _ = st.columns([2, 3])
@@ -660,7 +660,7 @@ st.dataframe(
 
 st.divider()
 
-# ── DRIFT MONITOR ─────────────────────────────────────────────────────────────
+# drift monitor
 st.markdown('<div class="section-header"><span class="section-title">Model Drift Monitor</span><span class="section-badge">8 time windows</span></div>', unsafe_allow_html=True)
 
 baseline = drift_df['avg_fraud_prob'][:3].mean()
@@ -726,7 +726,7 @@ if max_prob > drift_threshold:
 else:
     st.success(f"✅ Model stable — No significant drift detected across {len(drift_df)} time windows")
 
-# ── FOOTER ────────────────────────────────────────────────────────────────────
+# footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align:center;padding:1.5rem 0;'>
