@@ -23,6 +23,12 @@ with open(os.path.join(BASE_DIR, 'models', 'features.pkl'), 'rb') as f:
 with open(os.path.join(BASE_DIR, 'models', 'platt_scaler.pkl'), 'rb') as f:
     platt_scaler = pickle.load(f)
 
+# Held-out test metrics for the saved v4 model (model_v4 cell in
+# notebooks/01_exploration.ipynb). Update these whenever the model is retrained.
+MODEL_VERSION = "v4"
+MODEL_AUC_ROC = 0.9528
+MODEL_AUC_PR = 0.7017
+
 # Database connection
 load_dotenv('../.env')
 engine = create_engine(os.getenv('DATABASE_URL'))
@@ -74,6 +80,29 @@ def get_shap_explanation(X_row: pd.DataFrame) -> list:
     return drivers
 
 
+def parse_client_id(raw: str) -> int:
+    """Client IDs are TransactionIDs, so only plain digits are valid."""
+    cid = raw.strip()
+    if not (cid.isascii() and cid.isdigit()):
+        raise HTTPException(status_code=400,
+                            detail="client_id must be a numeric TransactionID")
+    return int(cid)
+
+
+def load_feature_row(cid: int):
+    """Fetch one transaction's model features, or None if it isn't stored."""
+    query = text("SELECT * FROM transactions_raw WHERE transactionid = :cid")
+    with engine.connect() as conn:
+        tx = pd.read_sql(query, conn, params={"cid": cid})
+    if tx.empty:
+        return None
+    tx.columns = [c.lower() for c in tx.columns]
+    X_row = tx[[f.lower() for f in features]].apply(
+        pd.to_numeric, errors='coerce').fillna(-1)
+    X_row.columns = features
+    return X_row
+
+
 @app.get("/")
 def root():
     return {
@@ -86,7 +115,8 @@ def root():
 
 @app.post("/assess", response_model=RiskResponse)
 def assess_client(request: AssessRequest):
-    client_id = request.client_id
+    cid = parse_client_id(request.client_id)
+    client_id = str(cid)
 
     # Check smart_risk_scores first — pre-computed with confidence + CLV
     smart_query = text("SELECT * FROM smart_risk_scores WHERE client_id = :cid")
@@ -96,18 +126,8 @@ def assess_client(request: AssessRequest):
     if not smart.empty:
         row = smart.iloc[0]
         # Get SHAP explanation from transaction data
-        tx_query = text("SELECT * FROM transactions_raw WHERE transactionid = :cid")
-        with engine.connect() as conn:
-            tx = pd.read_sql(tx_query, conn, params={"cid": int(client_id)})
-
-        if not tx.empty:
-            tx.columns = [c.lower() for c in tx.columns]
-            X_row = tx[[f.lower() for f in features]].apply(
-                pd.to_numeric, errors='coerce').fillna(-1)
-            X_row.columns = features
-            drivers = get_shap_explanation(X_row)
-        else:
-            drivers = []
+        X_row = load_feature_row(cid)
+        drivers = get_shap_explanation(X_row) if X_row is not None else []
 
         return RiskResponse(
             client_id=client_id,
@@ -121,11 +141,8 @@ def assess_client(request: AssessRequest):
 
 
     # Fallback — client not in smart scores, compute on the fly
-    tx_query = text("SELECT * FROM transactions_raw WHERE transactionid = :cid")
-    with engine.connect() as conn:
-        tx = pd.read_sql(tx_query, conn, params={"cid": int(client_id)})
-
-    if tx.empty:
+    X_row = load_feature_row(cid)
+    if X_row is None:
         raise HTTPException(status_code=404, detail=f"Client {client_id} not found")
 
     exp_query = text("SELECT * FROM exposure_profiles WHERE client_id = :cid")
@@ -134,12 +151,10 @@ def assess_client(request: AssessRequest):
 
     exposure_score = float(exp['exposure_score'].values[0]) if not exp.empty else 0.0
 
-    tx.columns = [c.lower() for c in tx.columns]
-    X_row = tx[[f.lower() for f in features]].apply(
-        pd.to_numeric, errors='coerce').fillna(-1)
-    X_row.columns = features
-
-    fraud_prob = float(model.predict_proba(X_row)[:, 1][0])
+    # Stored scores are Platt-calibrated, so calibrate here too; otherwise the
+    # tier thresholds below mean something different on this path.
+    raw_prob = float(model.predict_proba(X_row)[:, 1][0])
+    fraud_prob = float(platt_scaler.predict_proba([[raw_prob]])[:, 1][0])
     composite = round(0.70 * fraud_prob + 0.30 * exposure_score, 4)
 
     if composite >= 0.70: tier = 'FREEZE'
@@ -194,8 +209,10 @@ def model_performance():
 
     return {
         "total_clients_scored": int(total_count),
-        "model_auc_roc": 0.9434,
-        "model_auc_pr": 0.6447,
+        "model_version": MODEL_VERSION,
+        "model_auc_roc": MODEL_AUC_ROC,
+        "model_auc_pr": MODEL_AUC_PR,
+        "n_features": len(features),
         "tier_breakdown": result.to_dict(orient='records')
     }
 
