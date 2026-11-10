@@ -598,6 +598,22 @@ if btn and client_input:
                 }
                 tc, tb, tbg = tier_cfg.get(d['risk_tier'], ('#94a3b8', '#334155', 'rgba(148,163,184,0.1)'))
 
+                # Kept on one line: a blank line followed by indented HTML inside
+                # st.markdown ends the HTML block and the rest renders as a code block.
+                drivers_html = ""
+                for x in d["top_risk_drivers"]:
+                    up = x["impact"] > 0
+                    bar, txt = ("#ef4444", "#f87171") if up else ("#22c55e", "#4ade80")
+                    drivers_html += (
+                        f"<div style='margin:0.3rem 0;padding:0.6rem 0.8rem;background:#0f172a;border-radius:8px;display:flex;align-items:center;gap:0.8rem;border-left:3px solid {bar}'>"
+                        f"<div style='width:60px;color:{txt};font-weight:700;font-size:0.85rem;font-family:monospace'>{x['feature']}</div>"
+                        f"<div style='flex:1;background:#020408;border-radius:3px;height:6px'>"
+                        f"<div style='width:{min(abs(x['impact']) * 150, 100)}%;background:{bar};height:6px;border-radius:3px'></div></div>"
+                        f"<div style='color:{txt};font-size:0.8rem;font-weight:600'>{x['impact']:+.3f}</div>"
+                        f"<div style='color:#475569;font-size:0.75rem'>{'increases' if up else 'reduces'} risk</div>"
+                        "</div>"
+                    )
+
                 st.markdown(f"""
                 <div style='background:linear-gradient(135deg,#0f172a,#1e1b4b);border:1px solid #312e81;border-radius:16px;padding:1.5rem;margin:1rem 0'>
                     <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem'>
@@ -628,16 +644,7 @@ if btn and client_input:
                         <div style='color:#cbd5e1;font-size:0.9rem'>{d["recommendation"]}</div>
                     </div>
                     <div style='color:#475569;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem'>SHAP Risk Drivers</div>
-                    {"".join([f'''
-                    <div style='margin:0.3rem 0;padding:0.6rem 0.8rem;background:#0f172a;border-radius:8px;display:flex;align-items:center;gap:0.8rem;border-left:3px solid {"#ef4444" if x["impact"]>0 else "#22c55e"}'>
-                        <div style='width:60px;color:{"#f87171" if x["impact"]>0 else "#4ade80"};font-weight:700;font-size:0.85rem;font-family:monospace'>{x["feature"]}</div>
-                        <div style='flex:1;background:#020408;border-radius:3px;height:6px'>
-                            <div style='width:{min(abs(x["impact"])*150,100)}%;background:{"#ef4444" if x["impact"]>0 else "#22c55e"};height:6px;border-radius:3px'></div>
-                        </div>
-                        <div style='color:{"#f87171" if x["impact"]>0 else "#4ade80"};font-size:0.8rem;font-weight:600'>{x["impact"]:+.3f}</div>
-                        <div style='color:#475569;font-size:0.75rem'>{"increases" if x["impact"]>0 else "reduces"} risk</div>
-                    </div>
-                    ''' for x in d["top_risk_drivers"]])}
+                    {drivers_html}
                 </div>
                 """, unsafe_allow_html=True)
             else:
