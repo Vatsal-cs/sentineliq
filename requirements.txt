@@ -1,16 +1,18 @@
-fastapi
-uvicorn
-pandas
-numpy
-scikit-learn
-xgboost
-shap
-sqlalchemy
-psycopg2-binary
-python-dotenv
-pydantic
-streamlit
-plotly
-requests
-scipy
-matplotlib
+# Pinned to the versions the model pickles were built and tested with.
+# Unpinned installs broke the Render deploy (SQLAlchemy 2.1 switched drivers).
+fastapi==0.136.1
+uvicorn==0.46.0
+pandas==3.0.2
+numpy==2.4.4
+scikit-learn==1.8.0
+xgboost==3.2.0
+shap==0.51.0
+sqlalchemy==2.0.49
+psycopg2-binary==2.9.12
+python-dotenv==1.2.2
+pydantic==2.13.4
+streamlit==1.57.0
+plotly==6.7.0
+requests==2.33.1
+scipy==1.17.1
+matplotlib==3.10.9

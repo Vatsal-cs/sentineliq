@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import os
+import threading
 from sqlalchemy import create_engine, text
 
 st.set_page_config(
@@ -299,6 +300,18 @@ except:
 engine = create_engine(DATABASE_URL)
 API_URL = "https://sentineliq.onrender.com"
 
+# Render's free tier puts the API to sleep when idle and it takes up to a
+# minute to wake, so start waking it as soon as someone opens the page.
+def _wake_api():
+    try:
+        requests.get(API_URL, timeout=90)
+    except requests.RequestException:
+        pass
+
+if "api_wake_sent" not in st.session_state:
+    st.session_state.api_wake_sent = True
+    threading.Thread(target=_wake_api, daemon=True).start()
+
 @st.cache_data(ttl=300)
 def load_data():
     with engine.connect() as conn:
@@ -325,7 +338,7 @@ st.markdown(f"""
     <h1 class="hero-title">SentinelIQ</h1>
     <p class="hero-desc">
         A production-grade fraud detection system combining XGBoost machine learning, 
-        Bayesian confidence scoring, and customer lifetime value weighting — 
+        calibrated confidence scoring, and customer lifetime value weighting — 
         making smarter risk decisions that protect both your clients and your business.
     </p>
     <div class="hero-stats">
@@ -448,9 +461,10 @@ with col_r:
 st.divider()
 
 # fraud probability histogram
-st.markdown('<div class="section-header"><span class="section-title">Fraud Probability Distribution</span><span class="section-badge">590k transactions</span></div>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-header"><span class="section-title">Composite Risk Score Distribution</span><span class="section-badge">{total:,} clients</span></div>', unsafe_allow_html=True)
 
-fig3 = px.histogram(smart_df, x='fraud_probability', nbins=80,
+# Tier thresholds apply to the composite score (70% fraud model + 30% breach exposure)
+fig3 = px.histogram(smart_df, x='composite_score', nbins=80,
                     color_discrete_sequence=['#6366f1'])
 fig3.add_vline(x=0.70, line_dash="dash", line_color="#ef4444", line_width=1.5,
                annotation_text="FREEZE (0.70)", annotation_font_color="#ef4444",
@@ -466,7 +480,7 @@ fig3.update_layout(
     font=dict(color='#94a3b8', family='Inter'),
     height=220, margin=dict(l=10, r=10, t=20, b=10),
     showlegend=False,
-    xaxis=dict(showgrid=False, title='Fraud Probability', color='#64748b'),
+    xaxis=dict(showgrid=False, title='Composite Risk Score', color='#64748b'),
     yaxis=dict(showgrid=True, gridcolor='#0f172a', title='Count', color='#64748b')
 )
 st.plotly_chart(fig3, use_container_width=True)
@@ -482,11 +496,11 @@ col_s, col_info = st.columns([3, 1])
 with col_s:
     sample = smart_df.sample(min(8000, len(smart_df)), random_state=42)
     fig4 = px.scatter(
-        sample, x='fraud_probability', y='ci_width',
+        sample, x='composite_score', y='ci_width',
         color='clv_tier',
         color_discrete_map={'PREMIUM': '#f59e0b', 'STANDARD': '#6366f1', 'BASIC': '#334155'},
         opacity=0.7,
-        labels={'fraud_probability': 'Fraud Probability', 
+        labels={'composite_score': 'Composite Risk Score', 
                 'ci_width': 'Prediction Uncertainty (CI Width)',
                 'clv_tier': 'Customer Value'}
     )
@@ -554,26 +568,26 @@ st.markdown('<div class="section-header"><span class="section-title">Live Client
 
 col_in, col_hint = st.columns([2, 3])
 with col_in:
-    client_input = st.text_input("client_id_input", placeholder="Enter Client ID — try: 3353286", 
+    client_input = st.text_input("client_id_input", placeholder="Enter Client ID — try: 3045434", 
                                   label_visibility="collapsed")
     btn = st.button("⚡  Run Risk Assessment", type="primary", use_container_width=True)
 
 with col_hint:
     st.markdown("""
     <div style='padding:0.8rem;background:#0f172a;border-radius:10px;border:1px solid #1e293b;margin-top:0.2rem'>
-        <div style='font-size:0.7rem;color:#475569;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em'>Sample high-risk IDs</div>
+        <div style='font-size:0.7rem;color:#475569;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.05em'>Try: priority review · auto freeze · step-up auth</div>
         <div style='display:flex;gap:0.5rem;flex-wrap:wrap'>
-            <span style='background:#1e293b;color:#818cf8;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-family:monospace'>3353286</span>
-            <span style='background:#1e293b;color:#818cf8;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-family:monospace'>3314821</span>
-            <span style='background:#1e293b;color:#818cf8;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-family:monospace'>3367366</span>
+            <span style='background:#1e293b;color:#818cf8;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-family:monospace'>3163270</span>
+            <span style='background:#1e293b;color:#818cf8;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-family:monospace'>3045434</span>
+            <span style='background:#1e293b;color:#818cf8;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-family:monospace'>3173639</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 if btn and client_input:
-    with st.spinner(""):
+    with st.spinner("Scoring… if the API was asleep, this can take up to a minute"):
         try:
-            resp = requests.post(f"{API_URL}/assess", json={"client_id": client_input}, timeout=5)
+            resp = requests.post(f"{API_URL}/assess", json={"client_id": client_input}, timeout=90)
             if resp.status_code == 200:
                 d = resp.json()
                 tier_cfg = {
@@ -589,7 +603,7 @@ if btn and client_input:
                     <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem'>
                         <div>
                             <div style='color:#475569;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em'>Client Assessment</div>
-                            <div style='color:#e2e8f0;font-size:1.8rem;font-weight:800;font-family:monospace'>#{client_input}</div>
+                            <div style='color:#e2e8f0;font-size:1.8rem;font-weight:800;font-family:monospace'>#{d["client_id"]}</div>
                         </div>
                         <div style='background:{tbg};border:2px solid {tc};border-radius:10px;padding:0.5rem 1.2rem;text-align:center'>
                             <div style='color:{tc};font-size:1.1rem;font-weight:900;letter-spacing:0.05em'>{d["risk_tier"]}</div>
@@ -627,9 +641,13 @@ if btn and client_input:
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.error("Client not found in database")
-        except Exception as e:
-            st.warning("⚡ API offline — start FastAPI locally to enable live scoring")
+                try:
+                    detail = resp.json().get("detail")
+                except ValueError:
+                    detail = None
+                st.error(str(detail) if detail else f"API error ({resp.status_code})")
+        except requests.RequestException:
+            st.warning("⚡ The API didn't respond in time. It may still be waking up, so try again in a few seconds.")
 
 st.divider()
 
